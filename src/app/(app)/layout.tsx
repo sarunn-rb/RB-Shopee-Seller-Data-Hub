@@ -7,7 +7,7 @@ import { requireAuth } from "@/lib/auth/server";
 export default async function ProtectedAppLayout({ children }: { children: ReactNode }) {
   try {
     await requireAuth();
-  } catch (error) {
+  } catch {
     redirect("/login");
   }
 

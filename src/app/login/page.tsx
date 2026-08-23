@@ -43,9 +43,9 @@ export default function LoginPage() {
 
       router.push("/dashboard");
       router.refresh();
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Invalid credentials or you do not have access.");
+    } catch (err: unknown) {
+      const error = err as { message?: string };
+      setError(error.message || "Invalid credentials or you do not have access.");
     } finally {
       setLoading(false);
     }

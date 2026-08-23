@@ -15,7 +15,7 @@ const requestSchema = z.object({
     "get_gms_campaign_performance",
     "get_gms_item_performance"
   ]),
-  params: z.record(z.any()).optional()
+  params: z.record(z.string(), z.any()).optional()
 });
 
 export async function POST(request: NextRequest) {
@@ -63,11 +63,11 @@ export async function POST(request: NextRequest) {
           break;
         case "get_daily_performance":
           if (!params?.start_date || !params?.end_date) throw new Error("Missing start_date or end_date");
-          data = await AdsService.getDailyPerformance(connectionData.organizationId, connectionId, shopId, params.start_date, params.end_date);
+          data = await AdsService.getDailyPerformance(connectionData.organizationId, connectionId, shopId, String(params.start_date), String(params.end_date));
           break;
         case "get_hourly_performance":
           if (!params?.date) throw new Error("Missing date");
-          data = await AdsService.getHourlyPerformance(connectionData.organizationId, connectionId, shopId, params.date);
+          data = await AdsService.getHourlyPerformance(connectionData.organizationId, connectionId, shopId, String(params.date));
           break;
         case "get_product_campaign_id_list":
           data = await AdsService.getProductCampaignIdList(connectionData.organizationId, connectionId, shopId, params || {});
@@ -77,11 +77,11 @@ export async function POST(request: NextRequest) {
           break;
         case "get_gms_campaign_performance":
           if (!params?.start_date || !params?.end_date) throw new Error("Missing start_date or end_date");
-          data = await AdsService.getGmsCampaignPerformance(connectionData.organizationId, connectionId, shopId, params.start_date, params.end_date);
+          data = await AdsService.getGmsCampaignPerformance(connectionData.organizationId, connectionId, shopId, String(params.start_date), String(params.end_date));
           break;
         case "get_gms_item_performance":
           if (!params?.start_date || !params?.end_date) throw new Error("Missing start_date or end_date");
-          data = await AdsService.getGmsItemPerformance(connectionData.organizationId, connectionId, shopId, params.start_date, params.end_date);
+          data = await AdsService.getGmsItemPerformance(connectionData.organizationId, connectionId, shopId, String(params.start_date), String(params.end_date));
           break;
         default:
           return NextResponse.json({ error: "Invalid action" }, { status: 400 });

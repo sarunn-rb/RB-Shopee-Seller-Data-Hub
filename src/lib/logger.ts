@@ -49,18 +49,11 @@ export async function logApiInteraction(entry: ApiLogEntry) {
     
     const sanitizedMetadata = sanitizeMetadata(entry.metadata);
 
+    // Use a 'shopee_api_logs' collection
+    // Note: We don't await this strictly to avoid blocking the main API response path
     const logDoc = {
-      event: entry.event,
-      environment: env.NEXT_PUBLIC_SHOPEE_ENV || "sandbox",
-      organizationId: entry.organizationId,
-      connectionId: entry.connectionId || null,
-      shopId: entry.shopId || null,
-      endpointName: entry.endpointName || null,
-      httpStatus: entry.httpStatus || null,
-      providerRequestId: entry.providerRequestId || null,
-      providerErrorCode: entry.providerErrorCode || null,
-      durationMs: entry.durationMs || null,
-      message: entry.message || null,
+      ...entry,
+      environment: env.SHOPEE_ENV || "unknown",
       metadata: sanitizedMetadata || null,
       timestamp: FieldValue.serverTimestamp(),
     };

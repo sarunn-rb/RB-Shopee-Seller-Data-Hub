@@ -5,11 +5,23 @@ import { format } from "date-fns";
 
 export const dynamic = "force-dynamic";
 
+interface ApiLog {
+  id: string;
+  timestamp: string | null;
+  event: string;
+  endpointName?: string;
+  httpStatus?: number;
+  durationMs?: number;
+  shopId?: string;
+  message?: string;
+  providerErrorCode?: string;
+}
+
 export default async function LogsPage() {
   await requireAuth();
 
   const firestore = getFirebaseAdminFirestore();
-  let logs: any[] = [];
+  let logs: ApiLog[] = [];
   let errorMsg = "";
 
   try {
@@ -26,9 +38,10 @@ export default async function LogsPage() {
         id: doc.id,
         ...data,
         timestamp: data.timestamp ? data.timestamp.toDate().toISOString() : null,
-      };
+      } as ApiLog;
     });
-  } catch (error: any) {
+  } catch (err: unknown) {
+    const error = err as { message?: string };
     if (error.message?.includes("index")) {
       errorMsg = error.message; // Contains the URL to create the index
     } else {

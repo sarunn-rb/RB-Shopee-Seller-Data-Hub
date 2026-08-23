@@ -120,8 +120,9 @@ export async function GET(request: NextRequest) {
 
     // 5. Redirect back to UI
     return NextResponse.redirect(new URL("/connections?success=1", request.url));
-  } catch (error: any) {
-    console.error("Shopee Callback Error:", error);
-    return NextResponse.redirect(new URL(`/connections?error=${error.message}`, request.url));
+  } catch (err: unknown) {
+    console.error("Shopee Callback Error:", err);
+    const error = err as { message?: string };
+    return NextResponse.redirect(new URL(`/connections?error=${error.message || "Unknown error"}`, request.url));
   }
 }

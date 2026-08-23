@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { getFirebaseAdminFirestore } from "@/lib/firebase/admin";
 import { requireAuth } from "@/lib/auth/server";
@@ -6,7 +6,7 @@ import { getServerEnv } from "@/lib/env/server";
 import { getShopeeAuthUrl, SHOPEE_PATHS } from "@/lib/shopee/config";
 import { generateShopeeSignature } from "@/lib/shopee/signature";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Only authenticated users can initiate connection
     await requireAuth();

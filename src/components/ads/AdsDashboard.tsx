@@ -5,7 +5,6 @@ import { ShopeeConnection } from "@/types/firestore";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -29,11 +28,11 @@ export function AdsDashboard({ connections }: AdsDashboardProps) {
   const [error, setError] = useState<string | null>(null);
   
   const [data, setData] = useState<{
-    balance?: any;
-    daily?: any;
-    hourly?: any;
-    campaigns?: any;
-    gms?: any;
+    balance?: Record<string, unknown>;
+    daily?: Record<string, unknown>[];
+    hourly?: unknown;
+    campaigns?: unknown;
+    gms?: unknown;
   }>({});
 
   const fetchData = async () => {
@@ -73,7 +72,7 @@ export function AdsDashboard({ connections }: AdsDashboardProps) {
         })
       );
 
-      const newData: any = {};
+      const newData: Record<string, unknown> = {};
       const errors: string[] = [];
 
       results.forEach((result, index) => {
@@ -85,9 +84,11 @@ export function AdsDashboard({ connections }: AdsDashboardProps) {
         }
       });
 
+      const dailyData = newData["get_daily_performance"] as Record<string, unknown> | undefined;
+
       setData({
-        balance: newData["get_total_balance"],
-        daily: newData["get_daily_performance"]?.response || newData["get_daily_performance"],
+        balance: newData["get_total_balance"] as Record<string, unknown>,
+        daily: (dailyData?.response || dailyData) as Record<string, unknown>[],
         hourly: newData["get_hourly_performance"],
         campaigns: newData["get_product_campaign_id_list"],
         gms: newData["get_gms_campaign_performance"],
@@ -98,8 +99,9 @@ export function AdsDashboard({ connections }: AdsDashboardProps) {
         console.warn("Some endpoints failed:", errors);
       }
 
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const error = err as { message?: string };
+      setError(error.message || "Failed to fetch data");
     } finally {
       setLoading(false);
     }
@@ -118,13 +120,15 @@ export function AdsDashboard({ connections }: AdsDashboardProps) {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
         <div className="flex flex-col space-y-1.5 flex-1 min-w-[240px]">
           <label className="text-sm font-medium">Shop Connection</label>
-          <Select value={selectedConnectionId} onValueChange={setSelectedConnectionId}>
+          <Select value={selectedConnectionId} onValueChange={(val: string | null) => val && setSelectedConnectionId(val)}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Select a shop" />
             </SelectTrigger>
-            <SelectContent alignItemWithTrigger={false}>
-              {connections.map(c => (
-                <SelectItem key={c.id} value={c.id}>{c.shopName || `Shop ID: ${c.shopId}`}</SelectItem>
+            <SelectContent>
+              {connections.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.shopName || `Shop ID: ${c.shopId}`}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -133,24 +137,18 @@ export function AdsDashboard({ connections }: AdsDashboardProps) {
         <div className="flex flex-col space-y-1.5">
           <label className="text-sm font-medium">Start Date</label>
           <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant={"outline"}
-                className={cn(
-                  "w-[200px] justify-start text-left font-normal",
-                  !startDate && "text-muted-foreground"
-                )}
-              >
-                <IconCalendar className="mr-2 h-4 w-4" />
-                {startDate ? format(startDate, "PPP") : <span>Pick a date</span>}
-              </Button>
+            <PopoverTrigger className={cn(
+              "inline-flex items-center justify-start whitespace-nowrap rounded-md text-sm font-normal transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2 w-[200px] text-left",
+              !startDate && "text-muted-foreground"
+            )}>
+              <IconCalendar className="mr-2 h-4 w-4" />
+              {startDate ? format(startDate, "PPP") : <span>Pick a date</span>}
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
               <Calendar
                 mode="single"
                 selected={startDate}
-                onSelect={setStartDate}
-                initialFocus
+                onSelect={(date: Date | undefined) => date && setStartDate(date)}
               />
             </PopoverContent>
           </Popover>
@@ -159,24 +157,18 @@ export function AdsDashboard({ connections }: AdsDashboardProps) {
         <div className="flex flex-col space-y-1.5">
           <label className="text-sm font-medium">End Date</label>
           <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant={"outline"}
-                className={cn(
-                  "w-[200px] justify-start text-left font-normal",
-                  !endDate && "text-muted-foreground"
-                )}
-              >
-                <IconCalendar className="mr-2 h-4 w-4" />
-                {endDate ? format(endDate, "PPP") : <span>Pick a date</span>}
-              </Button>
+            <PopoverTrigger className={cn(
+              "inline-flex items-center justify-start whitespace-nowrap rounded-md text-sm font-normal transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2 w-[200px] text-left",
+              !endDate && "text-muted-foreground"
+            )}>
+              <IconCalendar className="mr-2 h-4 w-4" />
+              {endDate ? format(endDate, "PPP") : <span>Pick a date</span>}
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
               <Calendar
                 mode="single"
                 selected={endDate}
-                onSelect={setEndDate}
-                initialFocus
+                onSelect={(date: Date | undefined) => date && setEndDate(date)}
               />
             </PopoverContent>
           </Popover>
@@ -209,7 +201,7 @@ export function AdsDashboard({ connections }: AdsDashboardProps) {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {data.balance ? `฿${(data.balance.total_balance / 100000).toFixed(2)}` : "-"}
+                  {data.balance ? `฿${((data.balance.total_balance as number) / 100000).toFixed(2)}` : "-"}
                 </div>
                 <p className="text-xs text-muted-foreground">Ads Credits</p>
               </CardContent>
@@ -239,14 +231,14 @@ export function AdsDashboard({ connections }: AdsDashboardProps) {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.daily.map((row: any, i: number) => (
+                      {data.daily.map((row: Record<string, unknown>, i: number) => (
                         <tr key={i} className="border-b last:border-0">
-                          <td className="py-2 pr-4">{row.date}</td>
-                          <td className="py-2 px-4 text-right">{row.impression}</td>
-                          <td className="py-2 px-4 text-right">{row.clicks}</td>
-                          <td className="py-2 px-4 text-right">{row.ctr?.toFixed(2)}%</td>
-                          <td className="py-2 px-4 text-right">฿{(row.expense / 100000).toFixed(2)}</td>
-                          <td className="py-2 pl-4 text-right">฿{(row.direct_gmv / 100000).toFixed(2)}</td>
+                          <td className="py-2 pr-4">{row.date as string}</td>
+                          <td className="py-2 px-4 text-right">{row.impression as number}</td>
+                          <td className="py-2 px-4 text-right">{row.clicks as number}</td>
+                          <td className="py-2 px-4 text-right">{typeof row.ctr === 'number' ? row.ctr.toFixed(2) : '-'}%</td>
+                          <td className="py-2 px-4 text-right">฿{typeof row.expense === 'number' ? (row.expense / 100000).toFixed(2) : '-'}</td>
+                          <td className="py-2 pl-4 text-right">฿{typeof row.direct_gmv === 'number' ? (row.direct_gmv / 100000).toFixed(2) : '-'}</td>
                         </tr>
                       ))}
                     </tbody>

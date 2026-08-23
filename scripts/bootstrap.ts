@@ -56,7 +56,8 @@ async function bootstrap() {
     try {
       userRecord = await auth.getUserByEmail(email);
       console.log(`User ${email} already exists in Auth (uid: ${userRecord.uid})`);
-    } catch (e: any) {
+    } catch (error: unknown) {
+      const e = error as { code?: string };
       if (e.code === 'auth/user-not-found') {
         userRecord = await auth.createUser({
           email,

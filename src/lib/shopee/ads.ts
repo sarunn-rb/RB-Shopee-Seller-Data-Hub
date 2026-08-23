@@ -63,7 +63,7 @@ export class AdsService {
    * Fetches hourly CPC Ads performance for a specific date.
    * @param date DD-MM-YYYY
    */
-  static async getHourlyPerformance(organizationId: string, connectionId: string, shopId: number, date: string): Promise<any> {
+  static async getHourlyPerformance(organizationId: string, connectionId: string, shopId: number, date: string): Promise<unknown> {
     const res = await shopeeApiRequest(
       "/api/v2/ads/get_all_cpc_ads_hourly_performance",
       organizationId,
@@ -78,7 +78,7 @@ export class AdsService {
   /**
    * Fetches product level campaign id list.
    */
-  static async getProductCampaignIdList(organizationId: string, connectionId: string, shopId: number, queryParams: any = {}): Promise<any> {
+  static async getProductCampaignIdList(organizationId: string, connectionId: string, shopId: number, queryParams: Record<string, unknown> = {}): Promise<unknown> {
     const res = await shopeeApiRequest(
       "/api/v2/ads/get_product_level_campaign_id_list",
       organizationId,
@@ -93,7 +93,7 @@ export class AdsService {
   /**
    * Fetches product level campaign setting info.
    */
-  static async getProductCampaignSettingInfo(organizationId: string, connectionId: string, shopId: number, queryParams: any = {}): Promise<any> {
+  static async getProductCampaignSettingInfo(organizationId: string, connectionId: string, shopId: number, queryParams: Record<string, unknown> = {}): Promise<unknown> {
     const res = await shopeeApiRequest(
       "/api/v2/ads/get_product_level_campaign_setting_info",
       organizationId,
@@ -108,7 +108,7 @@ export class AdsService {
   /**
    * Fetches GMV Max (GMS) campaign performance.
    */
-  static async getGmsCampaignPerformance(organizationId: string, connectionId: string, shopId: number, startDate: string, endDate: string): Promise<any> {
+  static async getGmsCampaignPerformance(organizationId: string, connectionId: string, shopId: number, startDate: string, endDate: string): Promise<unknown> {
     const res = await shopeeApiRequest(
       "/api/v2/ads/get_gms_campaign_performance",
       organizationId,
@@ -123,7 +123,7 @@ export class AdsService {
   /**
    * Fetches GMV Max (GMS) item performance.
    */
-  static async getGmsItemPerformance(organizationId: string, connectionId: string, shopId: number, startDate: string, endDate: string): Promise<any> {
+  static async getGmsItemPerformance(organizationId: string, connectionId: string, shopId: number, startDate: string, endDate: string): Promise<unknown> {
     const res = await shopeeApiRequest(
       "/api/v2/ads/get_gms_item_performance",
       organizationId,

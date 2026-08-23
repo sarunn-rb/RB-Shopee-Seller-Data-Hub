@@ -1,6 +1,6 @@
 import { getFirebaseAdminFirestore } from "@/lib/firebase/admin";
 import { DEFAULT_ORG_ID, ShopeeConnection } from "@/types/firestore";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { IconCheck, IconAlertCircle } from "@tabler/icons-react";
 import Image from "next/image";
 import { requireAuth } from "@/lib/auth/server";
@@ -26,7 +26,7 @@ export default async function ConnectionsPage({
   const connections = connectionsSnapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
-  })) as (ShopeeConnection & { id: string })[];
+  })) as (ShopeeConnection & { id: string; error?: string })[];
 
   // Attempt to fetch shop info for each active connection
   const connectionsWithInfo = await Promise.all(

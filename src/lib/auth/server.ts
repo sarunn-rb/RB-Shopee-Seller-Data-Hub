@@ -41,7 +41,7 @@ export async function verifySession(): Promise<SessionResult> {
       email: decodedClaims.email || "",
       role: member.role,
     };
-  } catch (error) {
+  } catch {
     return { isAuthenticated: false, reason: "invalid_cookie" };
   }
 }

@@ -13,7 +13,7 @@ export async function shopeeApiRequest<T>(
   connectionId: string,
   shopId: number,
   method: "GET" | "POST" = "GET",
-  body?: any,
+  body?: unknown,
   queryParams?: Record<string, string>
 ): Promise<T> {
   const env = getServerEnv();
@@ -53,7 +53,7 @@ export async function shopeeApiRequest<T>(
 
   const startTime = Date.now();
   let httpStatus: number | undefined;
-  let responseData: any;
+  let responseData: Record<string, unknown> | undefined;
   let providerRequestId: string | undefined;
 
   try {
@@ -64,11 +64,11 @@ export async function shopeeApiRequest<T>(
       throw new Error(`Shopee API HTTP Error: ${response.status}`);
     }
 
-    responseData = await response.json();
-    providerRequestId = responseData.request_id;
+    responseData = await response.json() as Record<string, unknown>;
+    providerRequestId = responseData.request_id as string | undefined;
     
     if (responseData.error) {
-      throw new Error(`Shopee API Error: ${responseData.error} - ${responseData.message}`);
+      throw new Error(`Shopee API Error: ${responseData.error as string} - ${responseData.message as string}`);
     }
 
     return responseData.response as T;
@@ -84,7 +84,7 @@ export async function shopeeApiRequest<T>(
       endpointName: cleanPath,
       httpStatus,
       providerRequestId,
-      providerErrorCode: responseData?.error || "network_error",
+      providerErrorCode: responseData?.error ? String(responseData.error) : "network_error",
       durationMs: Date.now() - startTime,
       message: errorMessage,
       metadata: { body, queryParams }

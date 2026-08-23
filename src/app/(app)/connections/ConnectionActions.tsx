@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -41,8 +40,9 @@ export function ConnectionActions({ connectionId, status }: { connectionId: stri
       
       setDisconnectOpen(false);
       router.refresh();
-    } catch (err: any) {
-      setErrorMsg(err.message);
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      setErrorMsg(errMsg);
     } finally {
       setLoading(false);
     }
@@ -66,8 +66,9 @@ export function ConnectionActions({ connectionId, status }: { connectionId: stri
       
       setDeleteOpen(false);
       router.refresh();
-    } catch (err: any) {
-      setErrorMsg(err.message);
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      setErrorMsg(errMsg);
     } finally {
       setLoading(false);
     }
@@ -75,17 +76,15 @@ export function ConnectionActions({ connectionId, status }: { connectionId: stri
 
   const handleReconnect = () => {
     // Reusing the connect endpoint which initiates OAuth. 
-    window.location.href = "/api/shopee/connect";
+    router.push("/api/shopee/connect");
   };
 
   if (status === "active") {
     return (
       <AlertDialog open={disconnectOpen} onOpenChange={setDisconnectOpen}>
-        <AlertDialogTrigger asChild>
-          <Button variant="destructive" size="sm" disabled={loading}>
-            <IconTrash className="mr-2 h-4 w-4" />
-            Disconnect
-          </Button>
+        <AlertDialogTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950 disabled:pointer-events-none disabled:opacity-50 dark:focus-visible:ring-zinc-300 bg-red-500 text-zinc-50 shadow-sm hover:bg-red-500/90 dark:bg-red-900 dark:text-zinc-50 dark:hover:bg-red-900/90 h-8 px-3" disabled={loading}>
+          <IconTrash className="mr-2 h-4 w-4" />
+          Disconnect
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -119,10 +118,8 @@ export function ConnectionActions({ connectionId, status }: { connectionId: stri
       </Button>
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogTrigger asChild>
-          <Button variant="ghost" size="sm" disabled={loading} className="text-zinc-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30">
-            <IconTrash className="h-4 w-4" />
-          </Button>
+        <AlertDialogTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950 disabled:pointer-events-none disabled:opacity-50 dark:focus-visible:ring-zinc-300 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-50 h-8 px-3 text-zinc-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" disabled={loading}>
+          <IconTrash className="h-4 w-4" />
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
