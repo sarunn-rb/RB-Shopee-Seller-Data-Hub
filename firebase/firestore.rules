@@ -2,8 +2,64 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Phase 0: all business data is server-only through Firebase Admin.
-    // Authenticated browser access will be added only with explicit rules tests.
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isOrgAdmin(orgId) {
+      let memberData = get(/databases/$(database)/documents/organizations/$(orgId)).data.members;
+      return request.auth.uid in memberData && memberData[request.auth.uid].role == 'admin';
+    }
+
+    function isOrgMember(orgId) {
+      let memberData = get(/databases/$(database)/documents/organizations/$(orgId)).data.members;
+      return request.auth.uid in memberData;
+    }
+
+    // 1. Users Collection
+    // Users can only read their own profile.
+    match /users/{userId} {
+      allow read: if isAuthenticated() && isOwner(userId);
+      // No client-side write access to users. Admin SDK only for creating/updating users.
+      allow write: if false; 
+    }
+
+    // 2. Organizations Collection
+    // Members can read the org. Admins can update.
+    match /organizations/{orgId} {
+      allow read: if isAuthenticated() && isOrgMember(orgId);
+      allow update: if isAuthenticated() && isOrgAdmin(orgId);
+      // No client-side create/delete.
+      allow create, delete: if false;
+    }
+
+    // 3. Shopee Connections
+    // Only org members can read connection metadata.
+    match /shopee_connections/{connectionId} {
+      allow read: if isAuthenticated() && isOrgMember(resource.data.organizationId);
+      // Writes happen via API/Admin SDK.
+      allow write: if false;
+    }
+
+    // 4. Shopee Credentials (Strictly private)
+    // NEVER readable by the client browser.
+    match /shopee_credentials/{connectionId} {
+      allow read, write: if false;
+    }
+
+    // 5. OAuth States
+    // Strictly server-side flow. Browser never writes this.
+    match /oauth_states/{stateId} {
+      allow read, write: if false;
+    }
+
+    // Default deny
     match /{document=**} {
       allow read, write: if false;
     }

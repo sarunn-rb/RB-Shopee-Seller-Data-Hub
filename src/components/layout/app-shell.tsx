@@ -75,15 +75,7 @@ function SidebarContent({
         />
       </Link>
 
-      <div
-        className={cn(
-          "flex h-10 items-center rounded-lg border border-[#f4511e] text-sm font-semibold text-[#ff6b35]",
-          collapsed ? "mt-6 justify-center px-0" : "mt-12 gap-2 px-3",
-        )}
-      >
-        <span className="size-2 rounded-[2px] bg-[#f4511e]" aria-hidden="true" />
-        <span className={cn(collapsed && "sr-only")}>SANDBOX</span>
-      </div>
+
 
       <nav
         className={cn("space-y-1", collapsed ? "mt-8" : "mt-10")}

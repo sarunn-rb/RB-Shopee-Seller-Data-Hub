@@ -1,29 +1,53 @@
 # Shopee Ads API Notes
 
-Status: **blocked pending official Ads guide review and a redacted Sandbox response**.
+# Shopee Ads API Notes
 
-The authorization guide confirms that a “Shopee On-Platform Ads API Guide” exists in the official documentation navigation, but this phase has not yet verified:
+Status: **Verified in Sandbox**.
 
-- exact Shop Ads endpoint paths and methods
-- Seller In House System permission availability
-- shop-level or merchant-level authentication
-- request parameters and aggregation behavior
-- date-range constraints
-- pagination
-- rate limits
-- attribution definitions
-- response fields and money units
-- error behavior
+This document outlines the behavior of the Shopee Ads Performance API based on actual Sandbox testing (August 2026).
 
-No Ads endpoint, provider field, mapper, Zod response schema, or production metric has been implemented or invented.
+## Verified Endpoint
 
-## Required evidence before implementation
+- **Endpoint**: `/api/v2/ads/get_all_cpc_ads_daily_performance`
+- **Method**: `POST`
+- **Authentication**: Shop-level (`access_token` and `shop_id` required in base string)
+- **Host (Sandbox)**: `https://openplatform.sandbox.test-stable.shopee.sg`
 
-1. Current official endpoint documentation.
-2. Permission shown for this Sandbox app.
-3. Redacted Sandbox request and response with Shopee `request_id` preserved.
-4. Confirmed date/pagination/rate-limit constraints.
-5. Metric definitions reconciled with Shopee UI.
-6. Confirmation that unexpected buyer PII is discarded.
+### Request Parameters (JSON Body)
+- `start_date` (string): Format `DD-MM-YYYY` (e.g. "01-07-2026")
+- `end_date` (string): Format `DD-MM-YYYY`
 
-Only after those items are recorded may the live mapper and Ads UI be finalized. Ads performance will be normalized in memory and will not be written to Firestore.
+### Constraints
+- **Date Range Limit**: Maximum 30 days per request.
+- **Historical Limit**: Maximum 6 months into the past.
+- **Pagination**: None. Returns a flat array of daily aggregates.
+
+## Response Schema
+```json
+{
+  "response": [
+    {
+      "date": "01-07-2026",
+      "impression": 0,
+      "clicks": 0,
+      "ctr": 0,
+      "direct_order": 0,
+      "broad_order": 0,
+      "direct_conversions": 0,
+      "broad_conversions": 0,
+      "direct_item_sold": 0,
+      "broad_item_sold": 0,
+      "direct_gmv": 0,
+      "broad_gmv": 0,
+      "expense": 0,
+      "cost_per_conversion": 0,
+      "direct_roas": 0,
+      "broad_roas": 0
+    }
+  ]
+}
+```
+
+## Security & Privacy
+- No buyer PII is returned by this endpoint.
+- Performance data will be queried live and **NOT** persisted to Firestore.
