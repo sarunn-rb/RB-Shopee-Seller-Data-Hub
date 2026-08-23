@@ -1,0 +1,11 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Phase 0: all business data is server-only through Firebase Admin.
+    // Authenticated browser access will be added only with explicit rules tests.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
