@@ -3,14 +3,15 @@ import "server-only";
 import { cookies } from "next/headers";
 import { getServerEnv } from "@/lib/env/server";
 
-const SESSION_COOKIE_NAME = getServerEnv().SESSION_COOKIE_NAME;
+
 
 // Expires in 14 days
 const SESSION_EXPIRES_IN_MS = 14 * 24 * 60 * 60 * 1000;
 
 export async function getSessionCookie() {
   const cookieStore = await cookies();
-  return cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const sessionCookieName = getServerEnv().SESSION_COOKIE_NAME;
+  return cookieStore.get(sessionCookieName)?.value;
 }
 
 export async function setSessionCookie(sessionValue: string) {
@@ -18,7 +19,7 @@ export async function setSessionCookie(sessionValue: string) {
   const env = getServerEnv();
 
   cookieStore.set({
-    name: SESSION_COOKIE_NAME,
+    name: env.SESSION_COOKIE_NAME,
     value: sessionValue,
     httpOnly: true,
     secure: env.APP_ENV === "production" || env.APP_ENV === "staging",
@@ -30,5 +31,6 @@ export async function setSessionCookie(sessionValue: string) {
 
 export async function removeSessionCookie() {
   const cookieStore = await cookies();
-  cookieStore.delete(SESSION_COOKIE_NAME);
+  const sessionCookieName = getServerEnv().SESSION_COOKIE_NAME;
+  cookieStore.delete(sessionCookieName);
 }
