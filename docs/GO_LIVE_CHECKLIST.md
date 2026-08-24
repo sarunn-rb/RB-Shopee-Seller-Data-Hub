@@ -31,7 +31,7 @@ This is a readiness ledger, not evidence of Shopee approval.
 
 - [ ] Rotate the Test Partner Key exposed in supplied conversation content.
 - [ ] Configure the stable HTTPS Test Redirect URL Domain/URI.
-- [ ] Confirm the current Sandbox authorization hostname from an actual console-generated link.
+- [x] Confirmed Sandbox authorization host from this app's Console-generated link: `open.sandbox.test-stable.shopee.com` (2026-08-24).
 - [ ] Complete login → connect → callback → encrypted storage → shop info.
 - [ ] Capture a sanitized request ID for each of the seven Ads endpoints.
 - [ ] Reconcile money units, attribution metrics, date bounds, and rows with Shopee UI.

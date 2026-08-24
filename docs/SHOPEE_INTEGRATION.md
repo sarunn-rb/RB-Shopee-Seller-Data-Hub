@@ -16,10 +16,10 @@ The current seller authorization link uses:
 
 ```text
 GET https://open.shopee.com/auth                    (production)
-GET https://open.test-stable.shopee.com/auth        (Sandbox link/example currently exposed by the guide)
+GET https://open.sandbox.test-stable.shopee.com/auth (Sandbox)
 ```
 
-Parameters: `partner_id`, `auth_type=seller`, `redirect_uri`, `response_type=code`, and native `state`. The guide's Sandbox prose and linked example are not fully consistent about the Sandbox authorization hostname; the implementation follows the guide's current clickable example and requires a real Sandbox E2E confirmation before release.
+Parameters: `partner_id`, `auth_type=seller`, `redirect_uri`, `response_type=code`, and native `state`. The Sandbox host was confirmed from this app's Shopee Open Platform Console authorization link on 2026-08-24. It redirects through `account.sandbox.test-stable.shopee.com`; `open.test-stable.shopee.com` is not used for this app's Sandbox seller authorization.
 
 Shop authorization returns a one-time `code`, `shop_id`, and unchanged `state`. Main-account authorization may return `main_account_id`. The code is exchanged server-side at:
 

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getServerEnv } from "@/lib/env/server";
+import type { ShopeeEnvironment } from "@/types/firestore";
 
 export function getShopeeBaseUrl() {
   const env = getServerEnv();
@@ -13,10 +14,13 @@ export function getShopeeBaseUrl() {
 export function getShopeeAuthorizationUrl(mode: "authorize" | "cancel" = "authorize") {
   const env = getServerEnv();
   const path = mode === "cancel" ? "/cancel_auth" : "/auth";
-  const origin = env.SHOPEE_ENV === "production"
+  return new URL(path, getShopeeAuthorizationOrigin(env.SHOPEE_ENV));
+}
+
+export function getShopeeAuthorizationOrigin(environment: ShopeeEnvironment) {
+  return environment === "production"
     ? "https://open.shopee.com"
-    : "https://open.test-stable.shopee.com";
-  return new URL(path, origin);
+    : "https://open.sandbox.test-stable.shopee.com";
 }
 
 export const SHOPEE_PATHS = {
