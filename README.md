@@ -86,9 +86,24 @@ pnpm exec firebase deploy --only firestore:rules,firestore:indexes --project <st
 
 This repository does not deploy automatically. Review the target project before running the command.
 
+## Shared Firebase, separate Vercel environments
+
+Rabbit Bytes may use one Firebase project for both the Sandbox and Production Vercel applications. This is an application-level isolation model: the browser remains denied by Firestore Rules, and every server route must match the persisted connection's explicit `environment` to `SHOPEE_ENV`.
+
+Create two Vercel projects from this repository:
+
+| Vercel project | Required environment |
+| --- | --- |
+| Sandbox | `APP_ENV=staging`, `SHOPEE_ENV=sandbox` |
+| Production | `APP_ENV=production`, `SHOPEE_ENV=production` |
+
+Both projects use the same Firebase client and Admin project values. They must use different Shopee Partner credentials, redirect origins, session-cookie names, and AES-256-GCM `TOKEN_ENCRYPTION_KEY` values. Connection and credential document IDs are environment-namespaced (for example, `sandbox_shop_123` and `production_shop_123`), so the same shop ID never collides across environments.
+
+Because both server deployments can access the same Firebase project, a compromised Firebase Admin credential affects both environments. Keep the credentials server-only, rotate them on suspected exposure, and do not allow connection documents without an explicit `environment` field.
+
 ## Shopee Sandbox setup
 
-Configure a stable HTTPS callback in Shopee Console that exactly matches `SHOPEE_REDIRECT_URI`. Sandbox and production must use separate Firebase projects, Shopee apps/credentials, encryption keys, and host configuration. The app refuses mixed production/Sandbox environment settings.
+Configure a stable HTTPS callback in Shopee Console that exactly matches `SHOPEE_REDIRECT_URI`. Sandbox and production must use separate Shopee credentials, encryption keys, and host configuration. The app refuses mixed production/Sandbox environment settings.
 
 ## Troubleshooting
 

@@ -1,5 +1,5 @@
 import { getFirebaseAdminFirestore } from "@/lib/firebase/admin";
-import { requireAuth } from "@/lib/auth/server";
+import { parseConnectionDocument, requireAuth } from "@/lib/auth/server";
 import { AdsDashboard } from "@/components/ads/AdsDashboard";
 import { getServerEnv } from "@/lib/env/server";
 
@@ -12,17 +12,19 @@ export default async function AdsPage() {
   const connectionsSnapshot = await firestore
     .collection("shopee_connections")
     .where("organizationId", "==", auth.organizationId)
+    .where("environment", "==", getServerEnv().SHOPEE_ENV)
     .where("status", "==", "active")
     .get();
 
   const connections = connectionsSnapshot.docs.flatMap((doc) => {
-    const data = doc.data();
-    if ((data.environment ?? getServerEnv().SHOPEE_ENV) !== getServerEnv().SHOPEE_ENV) return [];
-    return [{
-      id: doc.id,
-      shopId: data.shopId,
-      shopName: data.shopName,
-    }];
+    try {
+      const connection = parseConnectionDocument(doc.data());
+      return connection.environment === getServerEnv().SHOPEE_ENV
+        ? [{ id: doc.id, shopId: connection.shopId, shopName: connection.shopName }]
+        : [];
+    } catch {
+      return [];
+    }
   });
 
   return (

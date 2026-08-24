@@ -110,7 +110,6 @@ export function parseConnectionDocument(value: unknown): ShopeeConnection {
 
   return ShopeeConnectionSchema.parse({
     ...raw,
-    environment: raw.environment ?? getServerEnv().SHOPEE_ENV,
     status,
     connectedAt: raw.connectedAt ?? raw.createdAt,
   });

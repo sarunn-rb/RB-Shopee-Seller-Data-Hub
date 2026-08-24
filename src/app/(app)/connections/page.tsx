@@ -40,6 +40,7 @@ export default async function ConnectionsPage({
   const snapshot = await getFirebaseAdminFirestore()
     .collection("shopee_connections")
     .where("organizationId", "==", auth.organizationId)
+    .where("environment", "==", getServerEnv().SHOPEE_ENV)
     .get();
   const connections = snapshot.docs.flatMap((doc) => {
     try {

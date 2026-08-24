@@ -102,6 +102,7 @@ export async function logAuditEvent(entry: AuditLogEntry): Promise<void> {
     const sanitized = sanitizeLogValue(entry) as AuditLogEntry;
     await getFirebaseAdminFirestore().collection("audit_logs").add({
       ...sanitized,
+      environment: getServerEnv().SHOPEE_ENV,
       createdAt: FieldValue.serverTimestamp(),
       expiresAt: expiresAt(),
     });

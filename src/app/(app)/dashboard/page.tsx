@@ -17,6 +17,7 @@ export default async function DashboardPage() {
   const snapshot = await getFirebaseAdminFirestore()
     .collection("shopee_connections")
     .where("organizationId", "==", auth.organizationId)
+    .where("environment", "==", environment)
     .get();
 
   const connections = snapshot.docs.flatMap((doc) => {

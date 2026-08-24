@@ -9,6 +9,7 @@ import { getFirebaseAdminFirestore } from "@/lib/firebase/admin";
 import { logApiInteraction, logAuditEvent } from "@/lib/logger";
 import { encryptString } from "@/lib/shopee/encryption";
 import { isShopeeApiError, toSafeShopeeErrorCode } from "@/lib/shopee/errors";
+import { getShopeeConnectionId } from "@/lib/shopee/connections";
 import { consumeOAuthState, exchangeAuthorizationCode } from "@/lib/shopee/oauth";
 import { getShopInfo } from "@/lib/shopee/shop";
 
@@ -51,21 +52,13 @@ export async function GET(request: NextRequest) {
     const token = await exchangeAuthorizationCode(query.code, query.shop_id);
     const env = getServerEnv();
     const firestore = getFirebaseAdminFirestore();
-    const candidates = await firestore.collection("shopee_connections")
-      .where("shopId", "==", query.shop_id)
-      .get();
-    const existingCandidate = candidates.docs.find((document) => {
-      const value = document.data();
-      return value.organizationId === auth.organizationId &&
-        (value.environment === undefined || value.environment === env.SHOPEE_ENV);
-    });
-    const connectionId = existingCandidate?.id ?? `${env.SHOPEE_ENV}_shop_${query.shop_id}`;
+    const connectionId = getShopeeConnectionId(env.SHOPEE_ENV, query.shop_id);
     const connectionRef = firestore.collection("shopee_connections").doc(connectionId);
     const credentialRef = firestore.collection("shopee_credentials").doc(connectionId);
     const nowSeconds = Math.floor(Date.now() / 1_000);
     const accessTokenExpiresAt = nowSeconds + token.expiresIn;
     const refreshTokenExpiresAt = nowSeconds + token.refreshTokenExpiresIn;
-    const existing = existingCandidate ?? await connectionRef.get();
+    const existing = await connectionRef.get();
 
     const batch = firestore.batch();
     batch.set(connectionRef, {

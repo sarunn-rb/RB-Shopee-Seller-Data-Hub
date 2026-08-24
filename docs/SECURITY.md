@@ -36,7 +36,7 @@ Ads performance is never persisted. Credential documents are never returned to t
 
 - Rotate the Test Partner Key shown in the user-supplied screenshot because it was exposed in conversation content.
 - Deploy Rules, composite indexes, and TTL overrides independently to staging/production.
-- Configure separate environment credentials and encryption keys; never copy Sandbox token documents into production.
+- When using one Firebase project for both deployments, configure separate Shopee credentials, redirect origins, session-cookie names, and encryption keys. Never copy Sandbox token documents into production. Every persisted connection must explicitly declare its environment; do not retain a fallback that infers it from the running deployment.
 - Re-run the emulator Rules suite in the deployment/CI environment; it passed locally on 2026-08-24 after Java was installed.
 - Validate CSP/HSTS/security headers on the actual staging domain.
 - Review Firebase Auth users and membership subdocuments; disable both when removing access.
