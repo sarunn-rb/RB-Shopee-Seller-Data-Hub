@@ -35,7 +35,7 @@ export function ConnectionActions({ connectionId, status }: { connectionId: stri
       
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Failed to disconnect");
+        throw new Error(data.error === "forbidden" ? "Admin access is required." : "Disconnect failed. Try again or check API Logs.");
       }
       
       setDisconnectOpen(false);
@@ -61,7 +61,7 @@ export function ConnectionActions({ connectionId, status }: { connectionId: stri
       
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Failed to delete");
+        throw new Error(data.error === "disconnect_first" ? "Disconnect the shop first." : "Delete failed. Try again.");
       }
       
       setDeleteOpen(false);
@@ -75,13 +75,11 @@ export function ConnectionActions({ connectionId, status }: { connectionId: stri
   };
 
   const handleReconnect = () => {
-    // Reusing the connect endpoint which initiates OAuth. 
     router.push("/api/shopee/connect");
   };
 
-  if (status === "active") {
-    return (
-      <AlertDialog open={disconnectOpen} onOpenChange={setDisconnectOpen}>
+  const disconnectDialog = (
+    <AlertDialog open={disconnectOpen} onOpenChange={setDisconnectOpen}>
         <AlertDialogTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950 disabled:pointer-events-none disabled:opacity-50 dark:focus-visible:ring-zinc-300 bg-red-500 text-zinc-50 shadow-sm hover:bg-red-500/90 dark:bg-red-900 dark:text-zinc-50 dark:hover:bg-red-900/90 h-8 px-3" disabled={loading}>
           <IconTrash className="mr-2 h-4 w-4" />
           Disconnect
@@ -90,7 +88,7 @@ export function ConnectionActions({ connectionId, status }: { connectionId: stri
           <AlertDialogHeader>
             <AlertDialogTitle>Disconnect Shop</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to disconnect this shop? All Shopee credentials will be deleted from the system. You will need to reauthorize the connection if you change your mind.
+              This deletes the encrypted Shopee credentials from Rabbit Bytes and stops API access locally. It does not cancel authorization at Shopee; an admin must also cancel the app from Shopee Open Platform or Seller Centre.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {errorMsg && (
@@ -105,11 +103,23 @@ export function ConnectionActions({ connectionId, status }: { connectionId: stri
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
+    </AlertDialog>
+  );
+
+  if (status !== "disconnected") {
+    return (
+      <div className="flex items-center justify-end gap-2">
+        {status === "reauthorization_required" || status === "error" ? (
+          <Button variant="outline" size="sm" onClick={handleReconnect} disabled={loading}>
+            <IconPlugConnected className="mr-2 h-4 w-4" />
+            Reauthorize
+          </Button>
+        ) : null}
+        {disconnectDialog}
+      </div>
     );
   }
 
-  // If status is disconnected or error, show Reconnect + Delete
   return (
     <div className="flex items-center justify-end space-x-2">
       <Button variant="outline" size="sm" onClick={handleReconnect} disabled={loading}>

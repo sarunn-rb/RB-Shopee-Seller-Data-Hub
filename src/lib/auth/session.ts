@@ -7,6 +7,11 @@ import { getServerEnv } from "@/lib/env/server";
 
 // Expires in 14 days
 const SESSION_EXPIRES_IN_MS = 14 * 24 * 60 * 60 * 1000;
+const RECENT_SIGN_IN_SECONDS = 5 * 60;
+
+export function hasRecentSignIn(authTime: unknown, nowSeconds = Math.floor(Date.now() / 1_000)): boolean {
+  return typeof authTime === "number" && authTime <= nowSeconds && nowSeconds - authTime <= RECENT_SIGN_IN_SECONDS;
+}
 
 export async function getSessionCookie() {
   const cookieStore = await cookies();

@@ -1,62 +1,86 @@
 # Shopee Integration
 
-Status: authorization documentation reviewed; provider implementation not started.
+## Verification status
 
-Official source reviewed through the authenticated Shopee Open Platform documentation page:
+Official documentation reviewed on 2026-08-24:
 
-- `https://open.shopee.com/developer-guide/20`
-- Page title: Authorization and Authentication
-- Page last updated: 2026-07-24
-- Reviewed: 2026-08-23
+- [Authorization and Authentication](https://open.shopee.com/developer-guide/20), last updated 2026-07-24
+- [Shopee On-Platform Ads API Guide](https://open.shopee.com/developer-guide/277), last updated 2026-01-29
+- current API reference pages linked from those guides
 
-## Verified authorization facts
+The integration is implemented and unit-tested. It is **not yet Sandbox E2E verified**, production verified, or Go-Live approved.
 
-- Seller authorization is required for non-public shop-management APIs.
-- Seller In House System apps can generate the authorization link from Open Platform Console → App list → Authorize.
-- The current authorization-link parameters include `partner_id`, `auth_type=seller`, `redirect_uri`, `response_type=code`, and optional `state`.
-- Shopee returns `state` unchanged, so the application will use a random, unguessable, short-lived, one-time value for CSRF protection.
-- Shop-account authorization redirects with a one-time `code` and `shop_id`.
-- Main-account authorization redirects with a one-time `code` and `main_account_id`.
-- The authorization code expires after 10 minutes and can be used once.
-- Authorization validity can be selected up to 365 days; reauthorization is required after expiry.
-- Access tokens are valid for 4 hours.
-- Refresh tokens are valid for 30 days.
-- After refresh, the previous access token remains valid for 5 minutes according to the current guide.
-- Reauthorization refreshes both access and refresh tokens.
+## Authorization flow
 
-## Verified token exchange
+The current seller authorization link uses:
 
-Initial token exchange:
+```text
+GET https://open.shopee.com/auth                    (production)
+GET https://open.test-stable.shopee.com/auth        (Sandbox link/example currently exposed by the guide)
+```
+
+Parameters: `partner_id`, `auth_type=seller`, `redirect_uri`, `response_type=code`, and native `state`. The guide's Sandbox prose and linked example are not fully consistent about the Sandbox authorization hostname; the implementation follows the guide's current clickable example and requires a real Sandbox E2E confirmation before release.
+
+Shop authorization returns a one-time `code`, `shop_id`, and unchanged `state`. Main-account authorization may return `main_account_id`. The code is exchanged server-side at:
 
 ```text
 POST /api/v2/auth/token/get
 ```
 
-Sandbox host shown in the current official guide:
+Token refresh uses:
 
 ```text
-https://openplatform.sandbox.test-stable.shopee.sg
+POST /api/v2/auth/access_token/get
 ```
 
-The request uses public-level signing: `partner_id + api_path + timestamp`, HMAC-SHA256 with the Partner Key, lowercase hex. The Partner Key, authorization code, and returned tokens stay server-only.
+The current refresh reference defines a 30-day, single-use rotating refresh token. A successful refresh replaces both tokens. Exact authorization/access-token lifetimes must be confirmed from the live provider response/console before production; stored expiry fields come only from verified response values or the documented 30-day refresh lifetime.
 
-This document does not authorize implementation from memory. Recheck the live guide immediately before implementing token refresh/cancel behavior and before production.
+## OAuth state and callback
 
-## Callback requirements
+`oauth_states/{state}` stores `state`, `userId`, `organizationId`, `environment`, safe internal `returnTo`, `createdAt`, and `expiresAt`. State is 32 random bytes, valid for 10 minutes, tied to the current admin/org/environment, and deleted in the same Firestore transaction that validates it. Firestore TTL provides eventual cleanup of abandoned states.
 
-The application callback will:
+Callback sequence:
 
-1. validate query parameters
-2. validate and transactionally consume OAuth state
-3. exchange the one-time code immediately server-side
-4. encrypt access and refresh tokens independently with AES-256-GCM
-5. write sanitized connection metadata separately from credentials
-6. validate the connection with a safe provider call
-7. write a redacted audit event
-8. redirect only to a safe internal route
+1. require an active admin session and current membership
+2. validate callback parameters with Zod
+3. transactionally validate and consume state
+4. exchange the one-time code without logging it or the response
+5. validate token response before storage
+6. encrypt access/refresh tokens independently with AES-256-GCM
+7. preserve existing connection `createdAt` during reauthorization
+8. call `get_shop_info` and persist only safe shop metadata
+9. write a sanitized audit event after successful commits
+10. redirect using fixed application status codes only
 
-No raw code or token will be returned to the browser.
+## Refresh concurrency
 
-## Console action still required
+```text
+transaction A: inspect expiry/version/lease → acquire short lease → commit
+provider call: refresh exactly once outside Firestore transaction
+transaction B: verify lease owner/version → rotate pair → increment version → clear lease
+```
 
-The screenshot supplied for the Sandbox app shows no Test Redirect URL Domain configured. Before authorization E2E, configure the stable staging callback domain in Shopee Console. The exact domain is not known yet and is therefore not guessed here.
+Concurrent callers wait for the lease holder and then use its newer token. An expired lease can be recovered. Permanent documented refresh failures persist `reauthorization_required` in a successful dedicated transaction. Network/server failures retain the existing authorization state and are not mislabeled as expiry.
+
+## Cancellation/disconnect
+
+The reviewed authorization guide documents seller-facing cancellation through `/cancel_auth` or Seller Centre. It does not document an applicable server-to-server revoke endpoint for this Seller In House flow. Therefore disconnect currently:
+
+1. requires admin + org ownership
+2. deletes encrypted credentials locally
+3. marks the connection `disconnected`
+4. records `providerRevocationStatus=manual_required`
+5. writes an audit event after commit
+
+This is explicitly **not** claimed as provider-side revocation. An admin must also cancel the authorization in Shopee.
+
+## Sandbox E2E checklist
+
+1. Sign in as an invited admin and verify the session cookie is HttpOnly/Secure on staging.
+2. Connect Shopee and confirm callback state is deleted after one use.
+3. Verify separate metadata and credential documents; confirm no plaintext token fields exist.
+4. Confirm shop info populates shop name/region and status becomes `active`.
+5. Run each live Ads action and capture sanitized `request_id` plus reconciliation evidence.
+6. Force an access-token refresh and confirm `tokenVersion` increments once with no lingering lease.
+7. Disconnect and confirm credential deletion plus `manual_required` provider cancellation status.
+8. Cancel authorization in Shopee, reconnect, and confirm `createdAt` is preserved while `reauthorizedAt` changes.

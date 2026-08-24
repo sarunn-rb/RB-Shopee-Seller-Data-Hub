@@ -1,33 +1,46 @@
 # Security
 
-## Phase 0 controls
+## Implemented controls
 
-- Firestore Rules deny all browser reads and writes.
-- Firebase Admin is isolated in a server-only module.
-- Private environment variables have no `NEXT_PUBLIC_` prefix.
-- Environment validation prevents Sandbox/Production configuration mixing.
-- Shopee credentials are not present in repository files.
-- The UI contains no provider credentials or real Ads data.
-- Lucide is not installed; UI icons use Tabler Icons.
+- Firebase ID token is verified with revocation checking and `auth_time <= 5 minutes` before a 14-day session cookie is minted.
+- Session cookie is HttpOnly, finite, SameSite=Lax, and Secure in staging/production.
+- Every protected request rechecks active Rabbit Bytes membership; removed/disabled users cannot rely on an old session.
+- Server-side roles enforce admin mutations and member read/reporting access. Connection routes verify organization and environment ownership.
+- Session-cookie mutations require an exact configured Origin.
+- Firestore browser Rules deny all business-data reads/writes; Firebase Admin remains server-only.
+- OAuth state is random, user/org/environment-bound, short-lived, one-time, transactionally consumed, and TTL-cleaned.
+- Tokens are validated before AES-256-GCM encryption; ciphertext, IV, and auth tag are stored separately from connection metadata.
+- Refresh provider HTTP never runs inside a Firestore transaction. Lease/version transactions prevent rotating-token races.
+- Provider requests use timeouts, `cache: no-store`, typed errors, schema validation, bounded safe retries, and safe `request_id` diagnostics.
+- Recursive logging sanitizes objects, arrays, messages, circular data, and secret-like keys. Logs/audits have 30-day TTL fields.
+- Login/callback UI receives fixed generic application codes, not Firebase exceptions, raw provider errors, codes, or tokens.
+- Bootstrap creates no predictable/shared password and prints no password/reset link.
 
-## Planned controls before Sandbox E2E
+## RBAC
 
-- Firebase session cookies with Secure, HttpOnly, finite expiry, and appropriate SameSite settings.
-- Server-side invite-only organization membership and admin/member RBAC.
-- One-time transactionally consumed OAuth state with short TTL and safe internal `returnTo`.
-- AES-256-GCM token encryption with unique random IVs and authenticated tamper failure.
-- Transactional refresh rotation with `tokenVersion`/lease concurrency protection.
-- Structured log redaction for secret-like keys.
-- Provider error sanitization while preserving safe `request_id` diagnostics.
-- Restrictive Rules/Emulator tests.
-- Security headers validated against Firebase requirements.
+| Capability | Admin | Member |
+|---|---:|---:|
+| Query live Ads / view reporting | yes | yes |
+| View safe connection metadata / diagnostics | yes | yes |
+| Connect / reauthorize / disconnect / delete | yes | no |
+| Manage members | yes | no |
 
-## Secret handling
+UI visibility is convenience only; API/server checks are authoritative.
 
-Never commit, log, display, or transmit Shopee Partner Key, access/refresh token, authorization code, token-encryption key, Firebase Admin private key, session cookies, passwords, or credential documents.
+## Data retention and privacy
 
-The Test API Partner Key visible in the supplied screenshot should be rotated in Shopee Console because it was exposed in conversation content. Do not reuse that exact key in committed files or documentation.
+Ads performance is never persisted. Credential documents are never returned to the browser. OAuth state, Shopee diagnostics, and audit logs carry `expiresAt`; Firestore TTL is configured for eventual deletion. No V1 endpoint intentionally requests buyer PII, and response schemas strip unexpected Ads row fields.
 
-## Data boundary
+## Required operational follow-up
 
-Firestore may hold identity, organization/member metadata, sanitized connection metadata, encrypted credentials, OAuth state, audit logs, and bounded diagnostics. Shopee Ads performance is queried live and is not persisted as reporting history.
+- Rotate the Test Partner Key shown in the user-supplied screenshot because it was exposed in conversation content.
+- Deploy Rules, composite indexes, and TTL overrides independently to staging/production.
+- Configure separate environment credentials and encryption keys; never copy Sandbox token documents into production.
+- Re-run the emulator Rules suite in the deployment/CI environment; it passed locally on 2026-08-24 after Java was installed.
+- Validate CSP/HSTS/security headers on the actual staging domain.
+- Review Firebase Auth users and membership subdocuments; disable both when removing access.
+- Verify TTL policies appear enabled in Firebase Console and monitor deletion lag (TTL deletion is not immediate).
+
+## Incident rule
+
+Never commit, display, log, or transmit Partner Key, authorization code, tokens, Firebase Admin private key, encryption key, session cookies, passwords, credential documents, or sensitive setup links. If exposure is suspected, rotate/revoke the affected credential and review sanitized audit/API logs.

@@ -1,68 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFirebaseAdminAuth, getFirebaseAdminFirestore } from "@/lib/firebase/admin";
 import { z } from "zod";
-import { logApiInteraction } from "@/lib/logger";
-import { getServerEnv } from "@/lib/env/server";
 
-const requestSchema = z.object({
-  connectionId: z.string().min(1),
-});
+import { toSafeApiError } from "@/lib/api-errors";
+import { requireConnectionAccess, requireRole } from "@/lib/auth/server";
+import { requireSameOrigin } from "@/lib/auth/csrf";
+import { getFirebaseAdminFirestore } from "@/lib/firebase/admin";
+import { logAuditEvent } from "@/lib/logger";
+
+const RequestSchema = z.object({ connectionId: z.string().min(1).max(200) });
 
 export async function DELETE(request: NextRequest) {
   try {
-    // 1. Verify session
-    const env = getServerEnv();
-    const sessionCookie = request.cookies.get(env.SESSION_COOKIE_NAME)?.value;
-    if (!sessionCookie) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    requireSameOrigin(request);
+    const parsed = RequestSchema.safeParse(await request.json());
+    if (!parsed.success) return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+
+    const auth = await requireRole("admin");
+    const { connection } = await requireConnectionAccess(parsed.data.connectionId, auth);
+    if (connection.status !== "disconnected") {
+      return NextResponse.json({ error: "disconnect_first" }, { status: 409 });
     }
 
-    const adminAuth = getFirebaseAdminAuth();
-    await adminAuth.verifySessionCookie(sessionCookie, true);
-    
-    // In a real app with strict RBAC, verify Admin role here
-    
-    // 2. Parse request
-    const body = await request.json();
-    const parsed = requestSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json({ error: "Invalid request body", details: parsed.error.issues }, { status: 400 });
-    }
-
-    const { connectionId } = parsed.data;
-
-    // 3. Perform Delete
     const firestore = getFirebaseAdminFirestore();
-    const connectionRef = firestore.collection("shopee_connections").doc(connectionId);
-    
-    const connSnap = await connectionRef.get();
-    if (!connSnap.exists) {
-      return NextResponse.json({ error: "Connection not found" }, { status: 404 });
-    }
-    
-    const connData = connSnap.data()!;
-
-    // Only allow deleting if it's already disconnected (safety measure)
-    if (connData.status === "active") {
-      return NextResponse.json({ error: "Cannot delete an active connection. Disconnect it first." }, { status: 400 });
-    }
-
-    await connectionRef.delete();
-    
-    // Log the delete audit event
-    await logApiInteraction({
-      event: "shopee_shop_deleted",
-      organizationId: connData.organizationId,
-      connectionId: connectionId,
-      shopId: connData.shopId,
-      message: "Shop permanently removed from database",
+    const batch = firestore.batch();
+    batch.delete(firestore.collection("shopee_credentials").doc(parsed.data.connectionId));
+    batch.delete(firestore.collection("shopee_connections").doc(parsed.data.connectionId));
+    await batch.commit();
+    await logAuditEvent({
+      action: "shopee_connection_deleted",
+      actorId: auth.uid,
+      organizationId: auth.organizationId,
+      connectionId: parsed.data.connectionId,
+      shopId: connection.shopId,
     });
-
     return NextResponse.json({ success: true });
-
-  } catch (error: unknown) {
-    const errMsg = error instanceof Error ? error.message : String(error);
-    console.error("Delete connection endpoint error:", errMsg);
-    return NextResponse.json({ error: errMsg }, { status: 500 });
+  } catch (error) {
+    const safe = toSafeApiError(error);
+    return NextResponse.json({ error: safe.code }, { status: safe.status });
   }
 }

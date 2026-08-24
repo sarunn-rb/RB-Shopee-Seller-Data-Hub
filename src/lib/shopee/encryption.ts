@@ -24,7 +24,10 @@ function getEncryptionKey(): Buffer {
 }
 
 export function encryptString(text: string): EncryptedData {
-  const key = getEncryptionKey();
+  return encryptStringWithKey(text, getEncryptionKey());
+}
+
+export function encryptStringWithKey(text: string, key: Buffer): EncryptedData {
   if (key.length !== 32) {
     throw new Error("Invalid encryption key length. Expected 32 bytes.");
   }
@@ -45,8 +48,10 @@ export function encryptString(text: string): EncryptedData {
 }
 
 export function decryptString(encryptedData: EncryptedData): string {
-  const key = getEncryptionKey();
-  
+  return decryptStringWithKey(encryptedData, getEncryptionKey());
+}
+
+export function decryptStringWithKey(encryptedData: EncryptedData, key: Buffer): string {
   const decipher = crypto.createDecipheriv(
     ALGORITHM,
     key,

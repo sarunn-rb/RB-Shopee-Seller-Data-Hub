@@ -1,110 +1,223 @@
 import "server-only";
 
+import { FieldValue } from "firebase-admin/firestore";
+import { z } from "zod";
+
 import { getServerEnv } from "@/lib/env/server";
-import { getShopeeBaseUrl } from "./config";
+import { getFirebaseAdminFirestore } from "@/lib/firebase/admin";
+import { logApiInteraction } from "@/lib/logger";
+import { getShopeeBaseUrl, SHOPEE_REQUEST_TIMEOUT_MS } from "./config";
+import { ShopeeApiError, isShopeeApiError } from "./errors";
 import { generateShopeeSignature } from "./signature";
 import { getValidShopeeAccessToken } from "./tokens";
 
-import { logApiInteraction } from "../logger";
+const EnvelopeSchema = z.object({
+  error: z.string().default(""),
+  message: z.string().optional(),
+  warning: z.string().optional(),
+  request_id: z.string().optional(),
+  response: z.unknown().optional(),
+}).passthrough();
 
-export async function shopeeApiRequest<T>(
-  path: string, // just the pathname, e.g. /api/v2/shop/get_shop_info
-  organizationId: string,
-  connectionId: string,
-  shopId: number,
-  method: "GET" | "POST" = "GET",
-  body?: unknown,
-  queryParams?: Record<string, string>
-): Promise<T> {
-  const env = getServerEnv();
-  const accessToken = await getValidShopeeAccessToken(connectionId, shopId);
-  const timestamp = Math.floor(Date.now() / 1000);
-  
-  // Authenticated requests append access_token and shop_id to the base string
-  const additionalParams = `${accessToken}${shopId}`;
-  
-  // The path for signature must NOT include query string
-  const cleanPath = path.split('?')[0];
-  const sign = generateShopeeSignature(cleanPath, timestamp, additionalParams);
+const AUTH_ERROR_CODES = new Set(["error_auth", "shop_access_expired"]);
+const PERMISSION_ERROR_CODES = new Set(["error_permission", "permission_denied", "forbidden"]);
 
-  const url = new URL(cleanPath, getShopeeBaseUrl());
-  url.searchParams.set("partner_id", env.SHOPEE_PARTNER_ID);
-  url.searchParams.set("timestamp", timestamp.toString());
-  url.searchParams.set("access_token", accessToken);
-  url.searchParams.set("shop_id", shopId.toString());
-  url.searchParams.set("sign", sign);
-  
-  if (queryParams) {
-    Object.entries(queryParams).forEach(([k, v]) => {
-      url.searchParams.set(k, v);
-    });
-  }
+export type ShopeeRequestOptions<T> = {
+  path: string;
+  endpointName: string;
+  organizationId: string;
+  connectionId: string;
+  shopId: number;
+  responseSchema: z.ZodType<T>;
+  method?: "GET" | "POST";
+  body?: Record<string, unknown>;
+  queryParams?: Record<string, string>;
+  retrySafe?: boolean;
+};
 
-  const options: RequestInit = {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-    },
-  };
+function classifyProviderError(input: {
+  endpointName: string;
+  errorCode: string;
+  requestId?: string;
+  httpStatus: number;
+}): ShopeeApiError {
+  const rateLimited = input.httpStatus === 429 || input.errorCode.startsWith("ads.rate_limit");
+  const authorizationExpired = AUTH_ERROR_CODES.has(input.errorCode);
+  const permissionDenied = PERMISSION_ERROR_CODES.has(input.errorCode);
+  const unavailable = input.httpStatus >= 500 || input.errorCode === "error_server" || input.errorCode === "error_network";
 
-  if (body && method === "POST") {
-    options.body = JSON.stringify(body);
-  }
+  return new ShopeeApiError({
+    kind: rateLimited
+      ? "rate_limited"
+      : authorizationExpired
+        ? "authorization_expired"
+        : permissionDenied
+          ? "permission_denied"
+          : unavailable
+            ? "provider_unavailable"
+            : "provider_error",
+    endpointName: input.endpointName,
+    errorCode: input.errorCode,
+    requestId: input.requestId,
+    httpStatus: input.httpStatus,
+    retryable: rateLimited || unavailable,
+    reauthorizationRequired: authorizationExpired,
+  });
+}
 
-  const startTime = Date.now();
-  let httpStatus: number | undefined;
-  let responseData: Record<string, unknown> | undefined;
-  let providerRequestId: string | undefined;
+async function boundedBackoff(attempt: number): Promise<void> {
+  const base = Math.min(250 * 2 ** attempt, 1_000);
+  const jitter = Math.floor(Math.random() * 100);
+  await new Promise((resolve) => setTimeout(resolve, base + jitter));
+}
 
-  try {
-    const response = await fetch(url.toString(), options);
-    httpStatus = response.status;
-    
-    if (!response.ok) {
-      throw new Error(`Shopee API HTTP Error: ${response.status}`);
-    }
+export async function shopeeApiRequest<T>(options: ShopeeRequestOptions<T>): Promise<T> {
+  const method = options.method ?? "GET";
+  const maxTransientRetries = options.retrySafe ? 2 : 0;
+  let transientAttempt = 0;
+  let refreshedAfterAuthError = false;
+  let forceRefreshOnNextAttempt = false;
+  const startedAt = Date.now();
 
-    responseData = await response.json() as Record<string, unknown>;
-    providerRequestId = responseData.request_id as string | undefined;
-    
-    if (responseData.error) {
-      throw new Error(`Shopee API Error: ${responseData.error as string} - ${responseData.message as string}`);
-    }
+  while (true) {
+    let httpStatus: number | undefined;
+    let providerRequestId: string | undefined;
+    let providerErrorCode: string | undefined;
 
-    return responseData.response as T;
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    
-    // Log the error
-    await logApiInteraction({
-      event: "shopee_api_error",
-      organizationId,
-      connectionId,
-      shopId,
-      endpointName: cleanPath,
-      httpStatus,
-      providerRequestId,
-      providerErrorCode: responseData?.error ? String(responseData.error) : "network_error",
-      durationMs: Date.now() - startTime,
-      message: errorMessage,
-      metadata: { body, queryParams }
-    });
+    try {
+      const accessToken = await getValidShopeeAccessToken(
+        options.connectionId,
+        options.shopId,
+        { forceRefresh: forceRefreshOnNextAttempt },
+      );
+      forceRefreshOnNextAttempt = false;
+      const timestamp = Math.floor(Date.now() / 1_000);
+      const cleanPath = options.path.split("?")[0];
+      const sign = generateShopeeSignature(
+        cleanPath,
+        timestamp,
+        `${accessToken}${options.shopId}`,
+      );
+      const env = getServerEnv();
+      const url = new URL(cleanPath, getShopeeBaseUrl());
+      url.searchParams.set("partner_id", env.SHOPEE_PARTNER_ID);
+      url.searchParams.set("timestamp", timestamp.toString());
+      url.searchParams.set("access_token", accessToken);
+      url.searchParams.set("shop_id", options.shopId.toString());
+      url.searchParams.set("sign", sign);
+      for (const [key, value] of Object.entries(options.queryParams ?? {})) {
+        url.searchParams.set(key, value);
+      }
 
-    throw error;
-  } finally {
-    // Log success if no throw
-    if (responseData && !responseData.error) {
-      await logApiInteraction({
-        event: "shopee_api_success",
-        organizationId,
-        connectionId,
-        shopId,
-        endpointName: cleanPath,
-        httpStatus,
-        providerRequestId,
-        durationMs: Date.now() - startTime,
-        metadata: { body, queryParams }
+      const response = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: method === "POST" && options.body ? JSON.stringify(options.body) : undefined,
+        cache: "no-store",
+        signal: AbortSignal.timeout(SHOPEE_REQUEST_TIMEOUT_MS),
       });
+      httpStatus = response.status;
+
+      let payload: unknown;
+      try {
+        payload = await response.json();
+      } catch {
+        throw new ShopeeApiError({
+          kind: "invalid_provider_response",
+          endpointName: options.endpointName,
+          httpStatus,
+        });
+      }
+
+      const envelope = EnvelopeSchema.safeParse(payload);
+      if (!envelope.success) {
+        throw new ShopeeApiError({
+          kind: "invalid_provider_response",
+          endpointName: options.endpointName,
+          httpStatus,
+        });
+      }
+      providerRequestId = envelope.data.request_id;
+      providerErrorCode = envelope.data.error || undefined;
+
+      if (!response.ok || providerErrorCode) {
+        throw classifyProviderError({
+          endpointName: options.endpointName,
+          errorCode: providerErrorCode ?? `http_${response.status}`,
+          requestId: providerRequestId,
+          httpStatus: response.status,
+        });
+      }
+
+      const parsedResponse = options.responseSchema.safeParse(envelope.data.response);
+      if (!parsedResponse.success) {
+        throw new ShopeeApiError({
+          kind: "invalid_provider_response",
+          endpointName: options.endpointName,
+          requestId: providerRequestId,
+          httpStatus,
+        });
+      }
+
+      await Promise.all([
+        logApiInteraction({
+          event: "shopee_api_success",
+          organizationId: options.organizationId,
+          connectionId: options.connectionId,
+          shopId: options.shopId,
+          endpointName: options.endpointName,
+          httpStatus,
+          providerRequestId,
+          durationMs: Date.now() - startedAt,
+          metadata: { body: options.body, queryParams: options.queryParams },
+        }),
+        getFirebaseAdminFirestore().collection("shopee_connections").doc(options.connectionId).update({
+          lastSuccessfulApiCallAt: FieldValue.serverTimestamp(),
+          lastErrorCode: FieldValue.delete(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }).catch(() => undefined),
+      ]);
+      return parsedResponse.data;
+    } catch (error) {
+      const normalizedError = isShopeeApiError(error)
+        ? error
+        : new ShopeeApiError({
+            kind: "provider_unavailable",
+            endpointName: options.endpointName,
+            errorCode: "network_error",
+            retryable: true,
+          });
+      if (
+        normalizedError.kind === "authorization_expired" &&
+        !refreshedAfterAuthError
+      ) {
+        refreshedAfterAuthError = true;
+        forceRefreshOnNextAttempt = true;
+        continue;
+      }
+      if (
+        normalizedError.retryable &&
+        transientAttempt < maxTransientRetries
+      ) {
+        await boundedBackoff(transientAttempt);
+        transientAttempt += 1;
+        continue;
+      }
+
+      await logApiInteraction({
+        event: "shopee_api_error",
+        organizationId: options.organizationId,
+        connectionId: options.connectionId,
+        shopId: options.shopId,
+        endpointName: options.endpointName,
+        httpStatus,
+        providerRequestId: normalizedError.requestId ?? providerRequestId,
+        providerErrorCode: normalizedError.errorCode ?? normalizedError.kind,
+        durationMs: Date.now() - startedAt,
+        message: normalizedError.kind,
+        metadata: { body: options.body, queryParams: options.queryParams },
+      });
+      throw normalizedError;
     }
   }
 }

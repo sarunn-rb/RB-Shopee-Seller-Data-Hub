@@ -18,9 +18,17 @@ export function generateShopeeSignature(
   const partnerId = env.SHOPEE_PARTNER_ID;
   const partnerKey = env.SHOPEE_PARTNER_KEY;
 
-  // Base string pattern: partner_id + api_path + timestamp + access_token + shop_id
+  return generateShopeeSignatureWithKey(partnerId, partnerKey, path, timestamp, additionalParams);
+}
+
+export function generateShopeeSignatureWithKey(
+  partnerId: string,
+  partnerKey: string,
+  path: string,
+  timestamp: number,
+  additionalParams = "",
+): string {
   const baseString = `${partnerId}${path}${timestamp}${additionalParams}`;
-  
   return crypto
     .createHmac("sha256", partnerKey)
     .update(baseString)

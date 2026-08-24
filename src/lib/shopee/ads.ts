@@ -1,137 +1,180 @@
+import "server-only";
+
+import { z } from "zod";
+
+import {
+  AdsPerformanceListSchema,
+  GmsCampaignPerformanceResponseSchema,
+  GmsItemPerformancePageSchema,
+  ProductCampaignListResponseSchema,
+  ProductCampaignSettingResponseSchema,
+  TotalBalanceResponseSchema,
+  type AdsPerformanceRecord,
+} from "./ads-schemas";
 import { shopeeApiRequest } from "./client";
+import { SHOPEE_PATHS } from "./config";
+import { ShopeeApiError } from "./errors";
 
-export interface AdsPerformanceRecord {
-  date?: string;
-  performance_date?: string;
-  impression: number;
-  clicks: number;
-  ctr: number;
-  direct_order: number;
-  broad_order: number;
-  direct_conversions: number;
-  broad_conversions: number;
-  direct_item_sold: number;
-  broad_item_sold: number;
-  direct_gmv: number;
-  broad_gmv: number;
-  expense: number;
-  cost_per_conversion: number;
-  direct_roas: number;
-  broad_roas: number;
-}
+const CAMPAIGN_PAGE_SIZE = 500;
+const MAX_CAMPAIGN_PAGES = 100;
+const MAX_ITEM_PAGES = 1_000;
 
-export interface TotalBalanceResponse {
-  data_timestamp: number;
-  total_balance: number;
+type RequestContext = {
+  organizationId: string;
+  connectionId: string;
+  shopId: number;
+};
+
+type Campaign = z.infer<typeof ProductCampaignListResponseSchema>["campaign_list"][number];
+type GmsItem = z.infer<typeof GmsItemPerformancePageSchema>["result_list"][number];
+
+function paginationLimitError(endpointName: string): ShopeeApiError {
+  return new ShopeeApiError({
+    kind: "invalid_provider_response",
+    endpointName,
+    errorCode: "pagination_limit_exceeded",
+  });
 }
 
 export class AdsService {
-  /**
-   * Fetches the total ads balance for the shop.
-   */
-  static async getTotalBalance(organizationId: string, connectionId: string, shopId: number): Promise<TotalBalanceResponse> {
-    const res = await shopeeApiRequest<{ response: TotalBalanceResponse }>(
-      "/api/v2/ads/get_total_balance",
-      organizationId,
-      connectionId,
-      shopId,
-      "GET"
-    );
-    // Some endpoints wrap in 'response', some return directly. Let's return raw or unwrap if needed.
-    // Our probe showed: {"success":true,"data":{"data_timestamp":1787498215,"total_balance":0}} (no 'response' wrapper, just raw data at root or error at root. But wait, shopee returns standard format. Let's return the whole payload)
-    return res as unknown as TotalBalanceResponse; 
+  static getTotalBalance(context: RequestContext) {
+    return shopeeApiRequest({
+      ...context,
+      path: SHOPEE_PATHS.ADS_TOTAL_BALANCE,
+      endpointName: "get_total_balance",
+      responseSchema: TotalBalanceResponseSchema,
+      retrySafe: true,
+    });
   }
 
-  /**
-   * Fetches daily CPC Ads performance.
-   * @param startDate DD-MM-YYYY
-   * @param endDate DD-MM-YYYY
-   */
-  static async getDailyPerformance(organizationId: string, connectionId: string, shopId: number, startDate: string, endDate: string): Promise<AdsPerformanceRecord[]> {
-    const res = await shopeeApiRequest<{ response: AdsPerformanceRecord[] } | AdsPerformanceRecord[]>(
-      "/api/v2/ads/get_all_cpc_ads_daily_performance",
-      organizationId,
-      connectionId,
-      shopId,
-      "POST",
-      { start_date: startDate, end_date: endDate }
-    );
-    return res as AdsPerformanceRecord[];
+  static getDailyPerformance(
+    context: RequestContext,
+    params: { start_date: string; end_date: string },
+  ): Promise<AdsPerformanceRecord[]> {
+    return shopeeApiRequest({
+      ...context,
+      path: SHOPEE_PATHS.ADS_DAILY_PERFORMANCE,
+      endpointName: "get_all_cpc_ads_daily_performance",
+      responseSchema: AdsPerformanceListSchema,
+      queryParams: params,
+      retrySafe: true,
+    });
   }
 
-  /**
-   * Fetches hourly CPC Ads performance for a specific date.
-   * @param date DD-MM-YYYY
-   */
-  static async getHourlyPerformance(organizationId: string, connectionId: string, shopId: number, date: string): Promise<unknown> {
-    const res = await shopeeApiRequest(
-      "/api/v2/ads/get_all_cpc_ads_hourly_performance",
-      organizationId,
-      connectionId,
-      shopId,
-      "POST",
-      { performance_date: date }
-    );
-    return res;
+  static getHourlyPerformance(
+    context: RequestContext,
+    params: { performance_date: string },
+  ): Promise<AdsPerformanceRecord[]> {
+    return shopeeApiRequest({
+      ...context,
+      path: SHOPEE_PATHS.ADS_HOURLY_PERFORMANCE,
+      endpointName: "get_all_cpc_ads_hourly_performance",
+      responseSchema: AdsPerformanceListSchema,
+      queryParams: params,
+      retrySafe: true,
+    });
   }
 
-  /**
-   * Fetches product level campaign id list.
-   */
-  static async getProductCampaignIdList(organizationId: string, connectionId: string, shopId: number, queryParams: Record<string, unknown> = {}): Promise<unknown> {
-    const res = await shopeeApiRequest(
-      "/api/v2/ads/get_product_level_campaign_id_list",
-      organizationId,
-      connectionId,
-      shopId,
-      "POST", // or GET depending on actual doc, we will pass body just in case
-      queryParams
-    );
-    return res;
+  static async getProductCampaignIdList(
+    context: RequestContext,
+    params: { ad_type: "all" | "auto" | "manual" },
+  ) {
+    const endpointName = "get_product_level_campaign_id_list";
+    const campaignList: Campaign[] = [];
+    let offset = 0;
+
+    for (let page = 0; page < MAX_CAMPAIGN_PAGES; page += 1) {
+      const response = await shopeeApiRequest({
+        ...context,
+        path: SHOPEE_PATHS.ADS_PRODUCT_CAMPAIGN_IDS,
+        endpointName,
+        responseSchema: ProductCampaignListResponseSchema,
+        queryParams: {
+          ad_type: params.ad_type,
+          offset: String(offset),
+          limit: String(CAMPAIGN_PAGE_SIZE),
+        },
+        retrySafe: true,
+      });
+      campaignList.push(...response.campaign_list);
+      if (!response.has_next_page) {
+        return { ...response, has_next_page: false, campaign_list: campaignList };
+      }
+      offset += CAMPAIGN_PAGE_SIZE;
+    }
+    throw paginationLimitError(endpointName);
   }
 
-  /**
-   * Fetches product level campaign setting info.
-   */
-  static async getProductCampaignSettingInfo(organizationId: string, connectionId: string, shopId: number, queryParams: Record<string, unknown> = {}): Promise<unknown> {
-    const res = await shopeeApiRequest(
-      "/api/v2/ads/get_product_level_campaign_setting_info",
-      organizationId,
-      connectionId,
-      shopId,
-      "POST",
-      queryParams
-    );
-    return res;
+  static getProductCampaignSettingInfo(
+    context: RequestContext,
+    params: { campaign_id_list: number[]; info_type_list: Array<1 | 2 | 3 | 4> },
+  ) {
+    return (async () => {
+      const campaignList: z.infer<typeof ProductCampaignSettingResponseSchema>["campaign_list"] = [];
+      let metadata: Omit<z.infer<typeof ProductCampaignSettingResponseSchema>, "campaign_list"> | undefined;
+      for (let index = 0; index < params.campaign_id_list.length; index += 100) {
+        const response = await shopeeApiRequest({
+          ...context,
+          path: SHOPEE_PATHS.ADS_PRODUCT_CAMPAIGN_SETTINGS,
+          endpointName: "get_product_level_campaign_setting_info",
+          responseSchema: ProductCampaignSettingResponseSchema,
+          queryParams: {
+            campaign_id_list: params.campaign_id_list.slice(index, index + 100).join(","),
+            info_type_list: params.info_type_list.join(","),
+          },
+          retrySafe: true,
+        });
+        metadata = { shop_id: response.shop_id, region: response.region };
+        campaignList.push(...response.campaign_list);
+      }
+      if (!metadata) throw paginationLimitError("get_product_level_campaign_setting_info");
+      return { ...metadata, campaign_list: campaignList };
+    })();
   }
 
-  /**
-   * Fetches GMV Max (GMS) campaign performance.
-   */
-  static async getGmsCampaignPerformance(organizationId: string, connectionId: string, shopId: number, startDate: string, endDate: string): Promise<unknown> {
-    const res = await shopeeApiRequest(
-      "/api/v2/ads/get_gms_campaign_performance",
-      organizationId,
-      connectionId,
-      shopId,
-      "POST",
-      { start_date: startDate, end_date: endDate, page_no: 1, page_size: 50 }
-    );
-    return res;
+  static getGmsCampaignPerformance(
+    context: RequestContext,
+    params: { start_date: string; end_date: string; campaign_id?: number },
+  ) {
+    return shopeeApiRequest({
+      ...context,
+      path: SHOPEE_PATHS.ADS_GMS_CAMPAIGN_PERFORMANCE,
+      endpointName: "get_gms_campaign_performance",
+      responseSchema: GmsCampaignPerformanceResponseSchema,
+      method: "POST",
+      body: params,
+    });
   }
 
-  /**
-   * Fetches GMV Max (GMS) item performance.
-   */
-  static async getGmsItemPerformance(organizationId: string, connectionId: string, shopId: number, startDate: string, endDate: string): Promise<unknown> {
-    const res = await shopeeApiRequest(
-      "/api/v2/ads/get_gms_item_performance",
-      organizationId,
-      connectionId,
-      shopId,
-      "POST",
-      { start_date: startDate, end_date: endDate, page_no: 1, page_size: 50 }
-    );
-    return res;
+  static async getGmsItemPerformance(
+    context: RequestContext,
+    params: { start_date: string; end_date: string; campaign_id?: number; page_size: number },
+  ) {
+    const endpointName = "get_gms_item_performance";
+    const resultList: GmsItem[] = [];
+    let offset = 0;
+
+    for (let page = 0; page < MAX_ITEM_PAGES; page += 1) {
+      const response = await shopeeApiRequest({
+        ...context,
+        path: SHOPEE_PATHS.ADS_GMS_ITEM_PERFORMANCE,
+        endpointName,
+        responseSchema: GmsItemPerformancePageSchema,
+        method: "POST",
+        body: {
+          start_date: params.start_date,
+          end_date: params.end_date,
+          campaign_id: params.campaign_id,
+          offset,
+          limit: params.page_size,
+        },
+      });
+      resultList.push(...response.result_list);
+      if (!response.has_next_page) {
+        return { ...response, has_next_page: false, result_list: resultList };
+      }
+      offset += params.page_size;
+    }
+    throw paginationLimitError(endpointName);
   }
 }

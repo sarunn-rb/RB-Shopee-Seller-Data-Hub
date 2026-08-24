@@ -1,7 +1,7 @@
 import { getFirebaseAdminFirestore } from "@/lib/firebase/admin";
-import { DEFAULT_ORG_ID } from "@/types/firestore";
 import { requireAuth } from "@/lib/auth/server";
 import { format } from "date-fns";
+import { getServerEnv } from "@/lib/env/server";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +18,7 @@ interface ApiLog {
 }
 
 export default async function LogsPage() {
-  await requireAuth();
+  const auth = await requireAuth();
 
   const firestore = getFirebaseAdminFirestore();
   let logs: ApiLog[] = [];
@@ -27,8 +27,9 @@ export default async function LogsPage() {
   try {
     const logsSnapshot = await firestore
       .collection("shopee_api_logs")
-      .where("organizationId", "==", DEFAULT_ORG_ID)
-      .orderBy("timestamp", "desc")
+      .where("organizationId", "==", auth.organizationId)
+      .where("environment", "==", getServerEnv().SHOPEE_ENV)
+      .orderBy("createdAt", "desc")
       .limit(50)
       .get();
 
@@ -37,13 +38,13 @@ export default async function LogsPage() {
       return {
         id: doc.id,
         ...data,
-        timestamp: data.timestamp ? data.timestamp.toDate().toISOString() : null,
+        timestamp: data.createdAt ? data.createdAt.toDate().toISOString() : null,
       } as ApiLog;
     });
   } catch (err: unknown) {
     const error = err as { message?: string };
     if (error.message?.includes("index")) {
-      errorMsg = error.message; // Contains the URL to create the index
+      errorMsg = "The required Firestore log index is not deployed yet.";
     } else {
       errorMsg = "Failed to load logs.";
       console.error(error);

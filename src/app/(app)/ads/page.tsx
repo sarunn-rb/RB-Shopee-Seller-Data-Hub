@@ -1,31 +1,29 @@
 import { getFirebaseAdminFirestore } from "@/lib/firebase/admin";
-import { DEFAULT_ORG_ID, ShopeeConnection } from "@/types/firestore";
 import { requireAuth } from "@/lib/auth/server";
 import { AdsDashboard } from "@/components/ads/AdsDashboard";
+import { getServerEnv } from "@/lib/env/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdsPage() {
-  await requireAuth();
+  const auth = await requireAuth();
 
   const firestore = getFirebaseAdminFirestore();
   const connectionsSnapshot = await firestore
     .collection("shopee_connections")
-    .where("organizationId", "==", DEFAULT_ORG_ID)
+    .where("organizationId", "==", auth.organizationId)
     .where("status", "==", "active")
     .get();
 
-  const connections = connectionsSnapshot.docs.map((doc) => {
+  const connections = connectionsSnapshot.docs.flatMap((doc) => {
     const data = doc.data();
-    return {
+    if ((data.environment ?? getServerEnv().SHOPEE_ENV) !== getServerEnv().SHOPEE_ENV) return [];
+    return [{
       id: doc.id,
       shopId: data.shopId,
       shopName: data.shopName,
-      status: data.status,
-      organizationId: data.organizationId,
-      // Strip complex timestamp objects as they cannot be passed to Client Components
-    };
-  }) as (ShopeeConnection & { id: string })[];
+    }];
+  });
 
   return (
     <div className="mx-auto w-full max-w-[1360px] space-y-6 px-4 py-8 sm:px-7 lg:px-10 lg:py-9">

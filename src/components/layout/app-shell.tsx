@@ -2,11 +2,11 @@
 
 import {
   IconChartBar,
-  IconChevronDown,
   IconChevronsLeft,
   IconChevronsRight,
   IconHistory,
   IconLayoutDashboard,
+  IconLogout,
   IconMenu2,
   IconPlugConnected,
   IconSettings,
@@ -17,15 +17,19 @@ import {
 } from "@tabler/icons-react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
+import { getFirebaseClientAuth } from "@/lib/firebase/client";
 import { cn } from "@/lib/utils";
+import { signOut } from "firebase/auth";
+import type { Role } from "@/types/firestore";
 
 type NavigationItem = {
   href: string;
   label: string;
   icon: Icon;
+  adminOnly?: boolean;
 };
 
 const navigation: NavigationItem[] = [
@@ -33,7 +37,7 @@ const navigation: NavigationItem[] = [
   { href: "/ads", label: "Shopee Ads", icon: IconChartBar },
   { href: "/connections", label: "Connections", icon: IconPlugConnected },
   { href: "/logs", label: "API Logs", icon: IconHistory },
-  { href: "/settings/members", label: "Members", icon: IconUsers },
+  { href: "/settings/members", label: "Members", icon: IconUsers, adminOnly: true },
   { href: "/settings", label: "Settings", icon: IconSettings },
 ];
 
@@ -41,10 +45,12 @@ function SidebarContent({
   collapsed = false,
   onNavigate,
   onToggle,
+  role,
 }: {
   collapsed?: boolean;
   onNavigate?: () => void;
   onToggle?: () => void;
+  role: Role;
 }) {
   const pathname = usePathname();
 
@@ -81,7 +87,7 @@ function SidebarContent({
         className={cn("space-y-1", collapsed ? "mt-8" : "mt-10")}
         aria-label="Main navigation"
       >
-        {navigation.map((item) => {
+        {navigation.filter((item) => !item.adminOnly || role === "admin").map((item) => {
           const isActive =
             item.href === "/dashboard"
               ? pathname === item.href
@@ -135,9 +141,17 @@ function SidebarContent({
   );
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ children, role, email }: { children: ReactNode; role: Role; email: string }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopCollapsed, setDesktopCollapsed] = useState(false);
+  const router = useRouter();
+
+  const logout = async () => {
+    await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => undefined);
+    await signOut(getFirebaseClientAuth()).catch(() => undefined);
+    router.push("/login");
+    router.refresh();
+  };
 
   return (
     <div
@@ -157,6 +171,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <SidebarContent
           collapsed={desktopCollapsed}
           onToggle={() => setDesktopCollapsed((value) => !value)}
+          role={role}
         />
       </aside>
 
@@ -177,7 +192,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             >
               <IconX size={20} />
             </button>
-            <SidebarContent onNavigate={() => setMobileOpen(false)} />
+            <SidebarContent onNavigate={() => setMobileOpen(false)} role={role} />
           </aside>
         </div>
       ) : null}
@@ -195,8 +210,16 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           <div className="ml-auto flex items-center gap-2 text-sm font-medium text-[#26292d]">
             <IconUserCircle size={32} stroke={1.4} className="text-[#555b62]" />
-            <span>Admin</span>
-            <IconChevronDown size={16} stroke={1.7} aria-hidden="true" />
+            <span className="hidden max-w-52 truncate sm:inline">{email || role}</span>
+            <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs capitalize text-zinc-600">{role}</span>
+            <button
+              type="button"
+              onClick={logout}
+              className="grid size-9 place-items-center rounded-md text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+              aria-label="Sign out"
+            >
+              <IconLogout size={18} stroke={1.7} />
+            </button>
           </div>
         </header>
         <main>{children}</main>

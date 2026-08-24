@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { IconBrandShopee } from "@tabler/icons-react"; // Use a related icon or generic one
+import { inMemoryPersistence, setPersistence, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { IconBrandShopee } from "@tabler/icons-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,7 @@ export default function LoginPage() {
 
     try {
       const auth = getFirebaseClientAuth();
+      await setPersistence(auth, inMemoryPersistence);
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       
       const idToken = await userCredential.user.getIdToken();
@@ -37,15 +38,16 @@ export default function LoginPage() {
       });
 
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Failed to create session");
+        throw new Error("sign_in_failed");
       }
+
+      await signOut(auth);
 
       router.push("/dashboard");
       router.refresh();
-    } catch (err: unknown) {
-      const error = err as { message?: string };
-      setError(error.message || "Invalid credentials or you do not have access.");
+    } catch {
+      await signOut(getFirebaseClientAuth()).catch(() => undefined);
+      setError("Sign in failed. Check your credentials and access with an administrator.");
     } finally {
       setLoading(false);
     }
