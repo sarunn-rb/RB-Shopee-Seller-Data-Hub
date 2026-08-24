@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { inMemoryPersistence, setPersistence, signInWithEmailAndPassword, signOut } from "firebase/auth";
-import { IconBrandShopee } from "@tabler/icons-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,9 +57,14 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950 p-4">
       <div className="w-full max-w-sm space-y-8 rounded-xl bg-white p-8 shadow-sm dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
         <div className="text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-orange-100 text-orange-600 dark:bg-orange-900/20 dark:text-orange-500">
-            <IconBrandShopee size={24} />
-          </div>
+          <Image
+            src="/brand/rabbit-bytes-wordmark.png"
+            alt="Rabbit Bytes"
+            width={202}
+            height={57}
+            priority
+            className="mx-auto h-auto w-[202px]"
+          />
           <h2 className="mt-4 text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
             RB Data Hub
           </h2>
