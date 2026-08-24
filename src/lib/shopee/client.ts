@@ -32,6 +32,7 @@ export type ShopeeRequestOptions<T> = {
   method?: "GET" | "POST";
   body?: Record<string, unknown>;
   queryParams?: Record<string, string>;
+  responseExtractor?: (payload: unknown) => unknown;
   retrySafe?: boolean;
 };
 
@@ -149,7 +150,10 @@ export async function shopeeApiRequest<T>(options: ShopeeRequestOptions<T>): Pro
         });
       }
 
-      const parsedResponse = options.responseSchema.safeParse(envelope.data.response);
+      const responsePayload = options.responseExtractor
+        ? options.responseExtractor(payload)
+        : envelope.data.response;
+      const parsedResponse = options.responseSchema.safeParse(responsePayload);
       if (!parsedResponse.success) {
         throw new ShopeeApiError({
           kind: "invalid_provider_response",

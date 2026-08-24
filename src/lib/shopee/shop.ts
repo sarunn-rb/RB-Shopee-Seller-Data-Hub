@@ -16,6 +16,10 @@ export const ShopInfoSchema = z.object({
 
 export type ShopInfo = z.infer<typeof ShopInfoSchema>;
 
+export function extractSandboxShopInfoResponse(payload: unknown) {
+  return payload;
+}
+
 export function getShopInfo(organizationId: string, connectionId: string, shopId: number) {
   return shopeeApiRequest({
     path: SHOPEE_PATHS.SHOP_INFO,
@@ -24,6 +28,8 @@ export function getShopInfo(organizationId: string, connectionId: string, shopId
     connectionId,
     shopId,
     responseSchema: ShopInfoSchema,
+    // Sandbox get_shop_info returns shop fields at the top level rather than in response.
+    responseExtractor: extractSandboxShopInfoResponse,
     retrySafe: true,
   });
 }

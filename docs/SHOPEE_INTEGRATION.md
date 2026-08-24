@@ -35,6 +35,10 @@ POST /api/v2/auth/access_token/get
 
 The current refresh reference defines a 30-day, single-use rotating refresh token. A successful refresh replaces both tokens. Exact authorization/access-token lifetimes must be confirmed from the live provider response/console before production; stored expiry fields come only from verified response values or the documented 30-day refresh lifetime.
 
+## Sandbox shop validation evidence
+
+On 2026-08-24, a successful Sandbox `GET /api/v2/shop/get_shop_info` returned HTTP 200 with a safe `request_id` and shop fields at the top level, including `shop_name`, `region`, `status`, `auth_time`, and `expire_time`. Unlike the usual v2 envelope assumption, this response did not contain a `response` object. The provider client therefore uses a narrow extractor for this endpoint only; Ads endpoints retain their documented envelope parsing. No token, signature, or raw response value was retained in logs or documentation.
+
 ## OAuth state and callback
 
 `oauth_states/{state}` stores `state`, `userId`, `organizationId`, `environment`, safe internal `returnTo`, `createdAt`, and `expiresAt`. State is 32 random bytes, valid for 10 minutes, tied to the current admin/org/environment, and deleted in the same Firestore transaction that validates it. Firestore TTL provides eventual cleanup of abandoned states.
