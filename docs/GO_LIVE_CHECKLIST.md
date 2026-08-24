@@ -17,11 +17,12 @@ This is a readiness ledger, not evidence of Shopee approval.
 
 ## Firebase staging actions
 
-- [x] Firestore Rules emulator suite passed locally with `pnpm test:rules` on 2026-08-24.
+- [x] Firestore Rules emulator suite passed on the maintainer's machine with `pnpm test:rules` on 2026-08-24.
 - [x] Confirm the shared Firebase project strategy: Vercel Sandbox and Production deployments are separated by explicit connection environment, Partner credentials, redirect origins, session-cookie names, and encryption keys.
 - [ ] Enable Email/Password Auth; disable public signup workflow.
 - [ ] Bootstrap approved admin/member users and securely send first-password reset email.
-- [ ] Deploy `firebase/firestore.rules` and `firebase/firestore.indexes.json` to the shared Firebase project.
+- [x] Deploy deny-all browser Firestore Rules to the shared Firebase project (2026-08-24).
+- [ ] Wait for the two environment-isolation connection indexes to reach Ready; they were created on 2026-08-24.
 - [ ] Confirm TTL policies for `oauth_states`, `shopee_api_logs`, and `audit_logs` are enabled.
 - [ ] Confirm log composite index reaches Ready state.
 - [ ] Configure Firebase Admin credentials only in secure server environment.
@@ -45,11 +46,11 @@ This is a readiness ledger, not evidence of Shopee approval.
 
 ## Vercel staging
 
-- [ ] Create a second Vercel project for Sandbox from the same GitHub repository and configure its stable callback origin.
+- [x] Create a second Vercel project for Sandbox from the same GitHub repository and configure its stable callback origin: `rb-shopee-seller-data-hub-sandbox.vercel.app`.
 - [ ] Configure the existing production Vercel project with the future Live callback origin only after Shopee issues Live Partner credentials.
 - [ ] Set different `TOKEN_ENCRYPTION_KEY` and session-cookie values in the two Vercel projects; Firebase client/Admin values remain shared.
-- [ ] Deploy, wait for READY, and verify a live HTTPS response.
-- [ ] Validate CSP, HSTS, clickjacking, referrer, and cache headers.
+- [ ] Add the Sandbox project's Firebase, Shopee, and encryption secret values in Vercel, then deploy and verify a live HTTPS response.
+- [x] Validate the existing Production deployment's CSP, HSTS, clickjacking, referrer, and cache headers (2026-08-24).
 - [ ] Run authenticated staging E2E without exposing tokens in browser/network logs.
 
 ## Production and Shopee approval
@@ -67,5 +68,5 @@ This is a readiness ledger, not evidence of Shopee approval.
 1. Test Partner Key that was exposed outside the secure environment must be rotated before further Sandbox testing.
 2. Reauthorize the Sandbox shop after the flat `get_shop_info` response handling deployment, then capture a sanitized Ads request ID.
 3. Firestore TTL policies cannot be enabled until Firebase billing is enabled; the composite API-log index is Ready.
-4. Create and configure the second Vercel Sandbox project, including its own Shopee redirect origin and secrets.
+4. Add the required secret environment values, Firebase Authorized Domain, and Shopee Test redirect URI to the new Vercel Sandbox project.
 5. Confirm whether Shopee requires a fixed outbound IP address when IP allowlisting is disabled. Vercel Hobby has dynamic outbound IPs.
