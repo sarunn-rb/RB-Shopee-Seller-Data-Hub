@@ -2,6 +2,11 @@
   "name": "rabbit-bytes-data-hub",
   "version": "0.1.0",
   "private": true,
+  "pnpm": {
+    "overrides": {
+      "jwks-rsa>jose": "4.15.9"
+    }
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build --webpack",

@@ -15,6 +15,7 @@
 - Recursive logging sanitizes objects, arrays, messages, circular data, and secret-like keys. Logs/audits have 30-day TTL fields.
 - Login/callback UI receives fixed generic application codes, not Firebase exceptions, raw provider errors, codes, or tokens.
 - Bootstrap creates no predictable/shared password and prints no password/reset link.
+- The lockfile pins `jwks-rsa`'s transitive `jose` dependency to the compatible CommonJS-capable `4.15.9`; this prevents Firebase Admin session routes from failing with `ERR_REQUIRE_ESM` in serverless Node.js runtimes.
 
 ## RBAC
 
