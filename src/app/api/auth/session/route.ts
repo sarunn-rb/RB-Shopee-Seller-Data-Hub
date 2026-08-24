@@ -15,8 +15,11 @@ export async function POST(request: NextRequest) {
     const body = RequestSchema.parse(await request.json());
     const auth = getFirebaseAdminAuth();
     const decoded = await auth.verifyIdToken(body.idToken, true);
-    if (!hasRecentSignIn(decoded.auth_time) || !await getCurrentMembership(decoded.uid)) {
+    if (!hasRecentSignIn(decoded.auth_time)) {
       return NextResponse.json({ error: "sign_in_failed" }, { status: 401 });
+    }
+    if (!await getCurrentMembership(decoded.uid)) {
+      return NextResponse.json({ error: "membership_required" }, { status: 403 });
     }
     const sessionCookie = await auth.createSessionCookie(body.idToken, { expiresIn: SESSION_EXPIRES_IN_MS });
     await setSessionCookie(sessionCookie);

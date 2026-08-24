@@ -8,6 +8,7 @@ import { inMemoryPersistence, setPersistence, signInWithEmailAndPassword, signOu
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getLoginErrorMessage } from "@/lib/auth/login-error";
 import { getFirebaseClientAuth } from "@/lib/firebase/client";
 
 export default function LoginPage() {
@@ -38,16 +39,25 @@ export default function LoginPage() {
       });
 
       if (!res.ok) {
-        throw new Error("sign_in_failed");
+        const body: unknown = await res.json().catch(() => undefined);
+        const errorCode = typeof body === "object" && body !== null && "error" in body
+          ? body.error
+          : "sign_in_failed";
+        throw new Error(typeof errorCode === "string" ? errorCode : "sign_in_failed");
       }
 
       await signOut(auth);
 
       router.push("/dashboard");
       router.refresh();
-    } catch {
+    } catch (loginError) {
       await signOut(getFirebaseClientAuth()).catch(() => undefined);
-      setError("Sign in failed. Check your credentials and access with an administrator.");
+      const errorCode = typeof loginError === "object" && loginError !== null && "code" in loginError
+        ? loginError.code
+        : loginError instanceof Error
+          ? loginError.message
+          : undefined;
+      setError(getLoginErrorMessage(errorCode));
     } finally {
       setLoading(false);
     }
